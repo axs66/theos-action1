@@ -7,16 +7,18 @@ on:
 
 jobs:
   build-logos:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]  # 使用 macOS 和 Ubuntu 构建
+    runs-on: ubuntu-latest  # 只使用 Ubuntu 环境
 
     steps:
       - uses: actions/checkout@v3
         with:
           repository: Randomblock1/FleetsBGone
           submodules: true  # 检出子模块
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtinfo-dev libncurses5
 
       - name: Prepare Theos
         uses: randomblock1/theos-action@main  # 设置 Theos
@@ -27,9 +29,7 @@ jobs:
           make package FINALPACKAGE=1  # 构建 package
 
       - name: Upload package
-        uses: actions/upload-artifact@v4  # 使用 v4 版本
+        uses: actions/upload-artifact@v4
         with:
-          name: "Package built by ${{ matrix.os }}"
+          name: "Package built by ubuntu-latest"
           path: ${{ github.workspace }}/packages/*.deb  # 上传生成的 .deb 文件
-
-  # TODO: Add a job to build an Orion tweak
