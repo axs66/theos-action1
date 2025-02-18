@@ -18,7 +18,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtinfo-dev libncurses-dev  # 使用 libncurses-dev 替代 libncurses5
+          # 安装更新的依赖项并替换 libtinfo5 为 libtinfo-dev
+          sudo apt-get install -y build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils
 
       - name: Prepare Theos
         uses: randomblock1/theos-action@main  # 设置 Theos
