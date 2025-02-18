@@ -49,18 +49,16 @@ jobs:
           fi
 
       - name: Get SDKs
-       shell: bash
-       run: |
-    if [[ "$(ls ${{ github.workspace }}/theos/sdks)" ]]; then
-      echo "Theos SDKs already cached, skipping..."
-    else
-      cd ${{ github.workspace }}/theos/sdks
-      wget --no-verbose https://github.com/theos/sdks/archive/master.zip
-      unzip -o master.zip  # 使用 unzip 解压
-      mv sdks-master/*.sdk ${{ github.workspace }}/theos/sdks
-      rm -r master.zip sdks-master
-    fi
-
+        run: |
+          if [[ "$(ls ${{ github.workspace }}/theos/sdks)" ]]; then
+            echo "Theos SDKs already cached, skipping..."
+          else
+            cd ${{ github.workspace }}/theos/sdks
+            wget --no-verbose https://github.com/theos/sdks/archive/master.zip
+            unzip -o master.zip  # 使用 unzip 解压
+            mv sdks-master/*.sdk ${{ github.workspace }}/theos/sdks
+            rm -r master.zip sdks-master
+          fi
 
       - name: Build package
         run: |
