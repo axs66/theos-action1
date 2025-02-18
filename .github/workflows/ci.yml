@@ -27,7 +27,7 @@ jobs:
           make package FINALPACKAGE=1  # 构建 package
 
       - name: Upload package
-        uses: actions/upload-artifact@v3.1.0
+        uses: actions/upload-artifact@v4  # 使用 v4 版本
         with:
           name: "Package built by ${{ matrix.os }}"
           path: ${{ github.workspace }}/packages/*.deb  # 上传生成的 .deb 文件
