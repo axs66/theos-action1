@@ -1,32 +1,3 @@
-name: "Install Theos"
-description: "Install Theos and prepare it for building projects"
-author: "Randomblock1"
-branding:
-  icon: download-cloud
-  color: purple
-
-inputs:
-  theos-dir:
-    description: "Where to install Theos"
-    required: false
-    default: ${{ github.workspace }}/theos
-  theos-src:
-    description: "Where to clone Theos from (git URL)"
-    required: false
-    default: "https://github.com/roothide/theos"
-  theos-sdks:
-    description: "Where to clone the iOS SDKs from (GitHub repository URL)"
-    required: false
-    default: "https://github.com/theos/sdks"
-  theos-sdks-branch:
-    description: "Which branch to clone from SDK repo"
-    required: false
-    default: "master"
-  orion:
-    description: "Whether to enable Orion, which adds support for Swift tweaks"
-    required: false
-    default: "false"
-
 runs:
   using: "composite"
   steps:
@@ -40,7 +11,7 @@ runs:
     - name: Setup (Linux)
       shell: bash
       if: runner.os == 'Linux'
-      run: sudo apt install build-essential fakeroot libtinfo5 libz3-dev rsync curl perl unzip git libplist-utils
+      run: sudo apt install build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils  # 替换 libtinfo5 为 libtinfo-dev
 
     - name: Setup environment
       shell: bash
