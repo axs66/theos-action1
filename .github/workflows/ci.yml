@@ -18,7 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtinfo-dev libncurses5
+          sudo apt-get install -y libtinfo-dev libncurses-dev  # 使用 libncurses-dev 替代 libncurses5
 
       - name: Prepare Theos
         uses: randomblock1/theos-action@main  # 设置 Theos
