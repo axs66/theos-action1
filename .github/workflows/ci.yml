@@ -3,33 +3,33 @@ name: CI
 on: 
   push:
   schedule:
-    - cron: '0 9 15 * *'
+    - cron: '0 9 15 * *'  # 每月15号的9点UTC触发工作流
 
 jobs:
   build-logos:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest]  # 使用 macOS 和 Ubuntu 构建
 
     steps:
       - uses: actions/checkout@v3
         with:
           repository: Randomblock1/FleetsBGone
-          submodules: true
+          submodules: true  # 检出子模块
 
       - name: Prepare Theos
-        uses: randomblock1/theos-action@main
+        uses: randomblock1/theos-action@main  # 设置 Theos
 
       - name: Build package
         run: |
-          rm -f packages/*
-          make package FINALPACKAGE=1
+          rm -f packages/*  # 清理旧包
+          make package FINALPACKAGE=1  # 构建 package
 
       - name: Upload package
         uses: actions/upload-artifact@v3.1.0
         with:
           name: "Package built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
+          path: ${{ github.workspace }}/packages/*.deb  # 上传生成的 .deb 文件
 
   # TODO: Add a job to build an Orion tweak
