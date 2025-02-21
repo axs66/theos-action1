@@ -19,7 +19,7 @@ jobs:
           submodules: true
 
       - name: Prepare Theos
-        uses: randomblock1/theos-action@main
+        uses: axs66/theos-action@main
 
       - name: Verify Theos installation
         run: |
