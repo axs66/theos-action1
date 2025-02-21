@@ -1,52 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]  # 限定触发分支
+  schedule:
+    - cron: '0 1 15 * *'  # UTC时间每月15日1:00 (北京时间9:00)
+      timezone: Asia/Shanghai
+
 jobs:
   build-logos:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
-        include:  # 添加架构标识
+        os: [ macos-latest, ubuntu-latest ]
+        include:  # 矩阵组合必须正确缩进
           - os: macos-latest
-            platform: macos
+            arch: arm64
           - os: ubuntu-latest
-            platform: linux
+            arch: x64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4  # 必须升级到v4
         with:
           repository: Randomblock1/FleetsBGone
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Setup platform dependencies
-        if: matrix.platform == 'linux'
-        run: |
-          # Ubuntu 专用依赖
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            fakeroot \
-            libtinfo-dev \  # 替换 libtinfo5
-            libz3-dev \
-            rsync \
-            curl \
-            perl \
-            unzip \
-            git \
-            libplist-utils \
-            libncurses5  # 补充缺失的依赖
-
-      - name: Prepare Theos
+      - name: Set up Theos
         uses: randomblock1/theos-action@main
         with:
-          # 禁用自动依赖安装
-          auto-dependencies: false
+          theos_version: v2.6  # 必须指定具体版本
+
+      - name: Clean workspace
+        run: |
+          rm -rf packages/*
+          mkdir -p packages
 
       - name: Build package
+        env:
+          THEOS_PACKAGE_DIR: ${{ github.workspace }}/packages
         run: |
-          rm -f packages/*
+          # 添加调试日志
+          echo "Build started at $(date)"
           make package FINALPACKAGE=1
+          ls -l $THEOS_PACKAGE_DIR
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4  # 必须升级到v4
         with:
-          name: "Package_${{ matrix.os }}"
-          path: packages/*.deb
+          name: fleetsbgone_${{ matrix.os }}_${{ matrix.arch }}
+          path: ${{ github.workspace }}/packages/*.deb
+          if-no-files-found: error  # 防止空上传
+
+  # 可选：Orion构建作业
+  # build-orion:
+  #   runs-on: macos-latest
+  #   steps: [...]
