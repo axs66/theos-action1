@@ -1,6 +1,6 @@
 name: CI
 
-on: 
+on:
   push:
   schedule:
     - cron: '0 9 15 * *'
@@ -13,23 +13,28 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: Randomblock1/FleetsBGone
-          submodules: true
+    - uses: actions/checkout@v4
+      with:
+        repository: Randomblock1/FleetsBGone
+        submodules: true
 
-      - name: Prepare Theos
-        uses: randomblock1/theos-action@main
+    - name: Prepare Theos
+      run: |
+        # Ubuntu 上的依赖包安装
+        sudo apt-get update  # 更新包列表
+        sudo apt-get install -y build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils  # 使用 libtinfo-dev 代替 libtinfo5
 
-      - name: Build package
-        run: |
-          rm -f packages/*
-          make package FINALPACKAGE=1
+    - name: Build package
+      run: |
+        # 修复 gmake 问题
+        export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"  # 确保使用正确的 make
+        rm -f packages/*
+        make package FINALPACKAGE=1
 
-      - name: Upload package
-        uses: actions/upload-artifact@v4
-        with:
-          name: "Package built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
+    - name: Upload package
+      uses: actions/upload-artifact@v4
+      with:
+        name: "Package built by ${{ matrix.os }}"
+        path: ${{ github.workspace }}/packages/*.deb
 
-  # TODO: Add a job to build an Orion tweak
+# TODO: Add a job to build an Orion tweak.
