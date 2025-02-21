@@ -1,35 +1,81 @@
 name: CI
 
-on: 
+on:
   push:
+    branches: [ main ]  # 限定触发分支
   schedule:
-    - cron: '0 9 15 * *'
+    - cron: '0 1 15 * *'  # UTC时间每月15日1:00 (北京时间9:00)
+      timezone: Asia/Shanghai  # 显式声明时区
 
 jobs:
   build-logos:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [ macos-latest, ubuntu-latest ]
+        include:  # 添加架构标识
+          - os: macos-latest
+            arch: arm64
+          - os: ubuntu-latest
+            arch: x64
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code (v4)
+        uses: actions/checkout@v4  # 升级至最新稳定版
         with:
           repository: Randomblock1/FleetsBGone
-          submodules: true
+          submodules: recursive  # 显式声明子模块模式
+          fetch-depth: 0  # 获取完整提交历史
 
-      - name: Prepare Theos
+      - name: Setup Theos
         uses: randomblock1/theos-action@main
+        with:  # 添加架构参数
+          target: ${{ matrix.arch }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+        path: |
+         ~/.theos/cache
+         ${{ github.workspace }}/.theos
+        key: ${{ runner.os }}-theos-${{ hashFiles('**/Makefile') }}
+    
+      - name: Clean previous builds
+        run: |
+          rm -rf packages/*
+          mkdir -p packages
+
+      - name: Generate semver
+        id: version
+        run: |
+         COMMIT_COUNT=$(git rev-list --count HEAD)
+         echo "version=1.9.$COMMIT_COUNT" >> $GITHUB_OUTPUT
 
       - name: Build package
         run: |
-          rm -f packages/*
-          make package FINALPACKAGE=1
+          # 添加时间戳作为构建标识
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          make package FINALPACKAGE=1 \
+            BUILD_ID=$TIMESTAMP \
+            THEOS_PACKAGE_NAME="FleetsBGone_${{ matrix.arch }}"
 
-      - name: Upload package
-        uses: actions/upload-artifact@v3
+      - name: Validate artifacts
+        run: |
+         if [ ! -f "${{ github.workspace }}/packages/"*.deb ]; then
+         echo "::error::No .deb files generated!"
+         exit 1
+         fi
+    
+      - name: Upload artifacts (v4)
+        uses: actions/upload-artifact@v4  # 升级至非弃用版本
         with:
-          name: "Package built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
+          name: "FleetsBGone_${{ matrix.os }}_${{ matrix.arch }}"
+          path: |
+            ${{ github.workspace }}/packages/*.deb
+            ${{ github.workspace }}/.theos/**/*.log  # 包含构建日志
+          retention-days: 7  # 设置自动清理周期
 
-  # TODO: Add a job to build an Orion tweak
+  # Orion 构建作业模板（根据需求补充）
+  # build-orion:
+  #   runs-on: macos-latest
+  #   steps: [...]
