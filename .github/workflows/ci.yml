@@ -31,6 +31,11 @@ jobs:
         run: |
           echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install build-essential fakeroot libncurses5 libz3-dev rsync curl perl unzip git libplist-utils
+
       - name: Build package
         run: |
           echo "Starting build..."
@@ -70,6 +75,11 @@ jobs:
       - name: Set PATH for gmake for Orion tweak
         run: |
           echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
+
+      - name: Install dependencies for Orion tweak
+        run: |
+          sudo apt update
+          sudo apt install build-essential fakeroot libncurses5 libz3-dev rsync curl perl unzip git libplist-utils
 
       - name: Build Orion tweak
         run: |
