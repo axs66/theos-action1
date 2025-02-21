@@ -54,7 +54,7 @@ jobs:
           submodules: true
 
       - name: Prepare Theos for Orion tweak
-        uses: randomblock1/theos-action@main
+        uses: axs66/theos-action@main
 
       - name: Verify Theos installation for Orion tweak
         run: |
@@ -70,7 +70,7 @@ jobs:
           echo "Orion tweak build finished with status $?"
 
       - name: Upload Orion tweak
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: "Orion tweak built by ${{ matrix.os }}"
           path: ${{ github.workspace }}/packages/*.deb
