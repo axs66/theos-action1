@@ -3,100 +3,65 @@ name: CI
 on: 
   push:
   schedule:
-    - cron: '0 9 15 * *'
+    - cron: '0 9 15 * *'  # 每月15号的9点UTC触发工作流
 
 jobs:
   build-logos:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
+    runs-on: ubuntu-latest  # 使用 Ubuntu 环境
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
           repository: Randomblock1/FleetsBGone
-          submodules: true
-          ref: main  # 使用仓库的 main 分支
-          fetch-depth: 0  # 拉取完整历史
-          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: true  # 检出子模块
 
-      - name: Prepare Theos
-        uses: axs66/theos-action@main
-
-      - name: Verify Theos installation
+      - name: Install dependencies and setup Theos
         run: |
-          which theos || echo "Theos not found"
-          theos --version || echo "Theos version not found"
-          which gmake || echo "gmake not found"
+          sudo apt-get update
+          # 尝试安装 libtinfo5，如果没有找到则安装 libtinfo-dev
+          sudo apt-get install -y build-essential fakeroot libz3-dev rsync curl perl unzip git libplist-utils
+          if ! dpkg -s libtinfo5 > /dev/null 2>&1; then
+            sudo apt-get install -y libtinfo-dev  # 如果 libtinfo5 不存在，安装 libtinfo-dev
+          fi
+      - name: Setup environment
+        run: echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
 
-      - name: Set PATH for gmake
+      - name: Download Theos
         run: |
-          echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
-
-      - name: Install dependencies
+          if [ ! -d "${{ github.workspace }}/theos" ]; then
+            git clone https://github.com/roothide/theos ${{ github.workspace }}/theos --recursive
+            echo "Theos successfully downloaded."
+          else
+            echo "Theos already cached."
+          fi
+      - name: Get toolchain (Linux)
         run: |
-          sudo apt update
-          sudo apt install -y build-essential fakeroot libncurses5 libz3-dev rsync curl perl unzip git libplist-utils
-
+          if [[ "$(ls ${{ github.workspace }}/theos/sdks)" ]]; then
+            echo "Linux toolchain already cached, skipping..."
+          else
+            TMP_DL=$(mktemp -d)
+            wget --no-verbose https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz -P $TMP_DL
+            tar -xvf $TMP_DL/swift-5.8-ubuntu22.04.tar.xz -C ${{ github.workspace }}/theos/toolchain
+            rm -Rf $TMP_DL
+          fi
+      - name: Get SDKs
+        run: |
+          if [[ "$(ls ${{ github.workspace }}/theos/sdks)" ]]; then
+            echo "Theos SDKs already cached, skipping..."
+          else
+            cd ${{ github.workspace }}/theos/sdks
+            wget --no-verbose https://github.com/theos/sdks/archive/master.zip
+            unzip -o master.zip  # 使用 unzip 解压
+            mv sdks-master/*.sdk ${{ github.workspace }}/theos/sdks
+            rm -r master.zip sdks-master
+          fi
       - name: Build package
         run: |
-          echo "Starting build..."
-          ls -la ${{ github.workspace }}
-          rm -f packages/*
-          gmake package FINALPACKAGE=1
-          echo "Build finished with status $?"
-
+          rm -f packages/*  # 清理旧包
+          make package FINALPACKAGE=1  # 构建 package
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
-          name: "Package built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
-
-  build-orion-tweak:
-    runs-on: ${{ matrix.os }}
-    needs: build-logos
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          repository: Randomblock1/OrionTweakRepo
-          submodules: true
-          ref: main  # 使用仓库的 main 分支
-          fetch-depth: 0  # 拉取完整历史
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Prepare Theos for Orion tweak
-        uses: axs66/theos-action@main
-
-      - name: Verify Theos installation for Orion tweak
-        run: |
-          which theos || echo "Theos not found"
-          theos --version || echo "Theos version not found"
-          which gmake || echo "gmake not found"
-
-      - name: Set PATH for gmake for Orion tweak
-        run: |
-          echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
-
-      - name: Install dependencies for Orion tweak
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential fakeroot libncurses5 libz3-dev rsync curl perl unzip git libplist-utils
-
-      - name: Build Orion tweak
-        run: |
-          echo "Starting Orion tweak build..."
-          ls -la ${{ github.workspace }}
-          rm -f packages/*
-          gmake orion FINALPACKAGE=1
-          echo "Orion tweak build finished with status $?"
-
-      - name: Upload Orion tweak
-        uses: actions/upload-artifact@v4
-        with:
-          name: "Orion tweak built by ${{ matrix.os }}"
-          path: ${{ github.workspace }}/packages/*.deb
+          name: "Package built by ubuntu-latest"
+          path: ${{ github.workspace }}/packages/*.deb  # 上传生成的 .deb 文件
