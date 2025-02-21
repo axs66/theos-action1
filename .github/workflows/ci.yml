@@ -1,131 +1,35 @@
-name: CI Pipeline
+name: CI
 
-on:
+on: 
   push:
-    branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'Makefile'
   schedule:
-    - cron: '0 1 15 * *'
-      timezone: Asia/Shanghai
+    - cron: '0 9 15 * *'
 
 jobs:
-  build-packages:
-    name: Build (${{ matrix.os }})
+  build-logos:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest, ubuntu-latest ]
-        include:
-          - os: macos-latest
-            brew_prefix: /opt/homebrew
-            make_cmd: gmake
-            setup_script: |
-              brew update-reset
-              brew install make ldid
-              sudo xcode-select --switch /Applications/Xcode_15.2.app
-          - os: ubuntu-latest
-            brew_prefix: /home/linuxbrew/.linuxbrew
-            make_cmd: make
-            setup_script: |
-              sudo apt-get update
-              sudo apt-get install -y build-essential clang llvm ldid
-
-    env:
-      HOMEBREW_PREFIX: ${{ matrix.brew_prefix }}
-      PATH: ${{ matrix.brew_prefix }}/bin:${{ matrix.brew_prefix }}/opt/make/libexec/gnubin:${{ env.PATH }}
+        os: [macos-latest, ubuntu-latest]
 
     steps:
-      - name: Checkout Codebase
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           repository: Randomblock1/FleetsBGone
-          submodules: recursive
-          fetch-depth: 0
-          persist-credentials: false
+          submodules: true
 
-      - name: Setup Build Environment
-        shell: bash
-        run: |
-          # 环境初始化
-          echo "===== System Info ====="
-          uname -a
-          sw_vers || cat /etc/os-release
-          
-          # 平台特定配置
-          ${{ matrix.setup_script }}
-          
-          # 路径验证
-          echo "PATH: $PATH"
-          which make
-          make --version
-
-      - name: Cache Dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ env.HOMEBREW_PREFIX }}/** 
-            ~/.theos
-            packages/
-          key: ${{ runner.os }}-${{ hashFiles('**/Makefile', '**/*.xm') }}-v3
-
-      - name: Prepare Theos Framework
+      - name: Prepare Theos
         uses: randomblock1/theos-action@main
-        with:
-          theos_branch: master
-          sdk_version: latest
-          cache: true
 
-      - name: Build Package (Multi-Arch)
-        id: build
-        timeout-minutes: 15
+      - name: Build package
         run: |
-          set -eo pipefail
-          
-          # 清理历史构建
-          rm -rf packages/*.{deb,log}
-          
-          # 动态版本生成
-          BUILD_DATE=$(date +'%Y%m%d-%H%M%S')
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          
-          # 并行构建
-          ${{ matrix.make_cmd }} package FINALPACKAGE=1 \
-            THEOS_PACKAGE_NAME="FleetsBGone-${{ matrix.os }}-$BUILD_DATE" \
-            THEOS_PACKAGE_VERSION="1.9.$(git rev-list --count HEAD)" \
-            BUILD_TIMESTAMP="$BUILD_DATE" \
-            COMMIT_HASH="$COMMIT_HASH" \
-            2>&1 | tee build.log
-          
-          # 构建产物校验
-          if [ ! -f packages/*.deb ]; then
-            echo "::error::No .deb files generated!"
-            exit 1
-          fi
+          rm -f packages/*
+          make package FINALPACKAGE=1
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload package
+        uses: actions/upload-artifact@v5
         with:
-          name: packages-${{ matrix.os }}-${{ steps.build.outputs.BUILD_ID }}
-          path: |
-            packages/*.deb
-            build.log
-          retention-days: 3
+          name: "Package built by ${{ matrix.os }}"
+          path: ${{ github.workspace }}/packages/*.deb
 
-      - name: Create GitHub Release
-        if: success() && github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # 智能版本管理
-          LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name 2>/dev/null || echo "v0.0.0")
-          NEW_VERSION=$(semver -i minor $LATEST_TAG)
-          
-          gh release create $NEW_VERSION \
-            packages/*.deb \
-            --title "Release $NEW_VERSION (${{ matrix.os }})" \
-            --notes "Build details:
-            - Platform: ${{ matrix.os }}
-            - Commit: $(git log -1 --pretty=format:'%h %s')
-            - Build Date: $(date +'%Y-%m-%d %H:%M:%S %Z')"
+  # TODO: Add a job to build an Orion tweak
