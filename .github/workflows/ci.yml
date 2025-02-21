@@ -1,9 +1,9 @@
 name: CI
 
-on:
+on: 
   push:
   schedule:
-    - cron: '0 9 15 * *'  # 每月 15 日的 09:00
+    - cron: '0 9 15 * *'
 
 jobs:
   build-logos:
@@ -13,42 +13,64 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-      # Checkout the repository
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
         with:
           repository: Randomblock1/FleetsBGone
           submodules: true
 
-      # Set up Theos environment
       - name: Prepare Theos
         uses: randomblock1/theos-action@main
 
-      # Ensure correct make path for macOS
-      - name: Fix gmake issue on macOS
-        if: runner.os == 'macOS'
+      - name: Verify Theos installation
         run: |
-          export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"  # 将 gmake 加入 PATH
-          rm -f packages/*
-          echo "当前目录：$(pwd)"
-          echo "列出当前目录的文件："
-          ls -la
-          gmake package FINALPACKAGE=1  # 使用 gmake 代替 make
+          which theos || echo "Theos not found"
+          theos --version || echo "Theos version not found"
 
-      # Install dependencies on Ubuntu
-      - name: Install dependencies on Ubuntu
-        if: runner.os == 'Linux'
+      - name: Build package
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils
+          echo "Starting build..."
+          ls -la ${{ github.workspace }}
           rm -f packages/*
-          echo "当前目录：$(pwd)"
-          echo "列出当前目录的文件："
-          ls -la
           make package FINALPACKAGE=1
+          echo "Build finished with status $?"
 
-      # Upload the built package
       - name: Upload package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: "Package built by ${{ matrix.os }}"
+          path: ${{ github.workspace }}/packages/*.deb
+
+  build-orion-tweak:
+    runs-on: ${{ matrix.os }}
+    needs: build-logos
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: Randomblock1/OrionTweakRepo
+          submodules: true
+
+      - name: Prepare Theos for Orion tweak
+        uses: randomblock1/theos-action@main
+
+      - name: Verify Theos installation for Orion tweak
+        run: |
+          which theos || echo "Theos not found"
+          theos --version || echo "Theos version not found"
+
+      - name: Build Orion tweak
+        run: |
+          echo "Starting Orion tweak build..."
+          ls -la ${{ github.workspace }}
+          rm -f packages/*
+          make orion FINALPACKAGE=1
+          echo "Orion tweak build finished with status $?"
+
+      - name: Upload Orion tweak
+        uses: actions/upload-artifact@v3
+        with:
+          name: "Orion tweak built by ${{ matrix.os }}"
           path: ${{ github.workspace }}/packages/*.deb
