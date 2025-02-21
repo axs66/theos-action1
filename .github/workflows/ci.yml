@@ -3,7 +3,7 @@ name: CI
 on:
   push:
   schedule:
-    - cron: '0 9 15 * *'
+    - cron: '0 9 15 * *'  # 每月 15 日的 09:00
 
 jobs:
   build-logos:
@@ -13,39 +13,42 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: Randomblock1/FleetsBGone
-        submodules: true  # 确保子模块正确检出
+      # Checkout the repository
+      - uses: actions/checkout@v4
+        with:
+          repository: Randomblock1/FleetsBGone
+          submodules: true
 
-    - name: Prepare Theos
-      run: |
-        if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          sudo apt-get update  # 更新包列表
-          sudo apt-get install -y lsb-release  # 安装 lsb-release 包
-          lsb_release -a  # 检查系统版本
-          sudo apt-get install -y build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils  # 安装依赖
-        fi
+      # Set up Theos environment
+      - name: Prepare Theos
+        uses: randomblock1/theos-action@main
 
-    - name: Build package
-      run: |
-        # 确保正确设置 make 路径
-        export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"  # 确保使用正确的 make
-        rm -f packages/*
+      # Ensure correct make path for macOS
+      - name: Fix gmake issue on macOS
+        if: runner.os == 'macOS'
+        run: |
+          export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"
+          rm -f packages/*
+          echo "当前目录：$(pwd)"
+          echo "列出当前目录的文件："
+          ls -la
+          make package FINALPACKAGE=1
 
-        # 确保文件路径正确
-        echo "当前目录：$(pwd)"
-        echo "列出当前目录的文件："
-        ls -la
+      # Install dependencies for Ubuntu
+      - name: Install dependencies on Ubuntu
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential fakeroot libtinfo-dev libz3-dev rsync curl perl unzip git libplist-utils
+          rm -f packages/*
+          echo "当前目录：$(pwd)"
+          echo "列出当前目录的文件："
+          ls -la
+          make package FINALPACKAGE=1
 
-        # 跳过 Makefile，直接执行构建命令
-        # 假设没有 Makefile，你可以直接运行构建命令，如 make package
-        make package FINALPACKAGE=1  # 直接执行构建
-
-    - name: Upload package
-      uses: actions/upload-artifact@v4
-      with:
-        name: "Package built by ${{ matrix.os }}"
-        path: ${{ github.workspace }}/packages/*.deb
-
-# TODO: Add a job to build an Orion tweak.
+      # Upload the built package
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Package built by ${{ matrix.os }}"
+          path: ${{ github.workspace }}/packages/*.deb
