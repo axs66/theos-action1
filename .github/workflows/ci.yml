@@ -27,12 +27,12 @@ jobs:
       - name: Fix gmake issue on macOS
         if: runner.os == 'macOS'
         run: |
-          export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"
+          export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"  # 将 gmake 加入 PATH
           rm -f packages/*
           echo "当前目录：$(pwd)"
           echo "列出当前目录的文件："
           ls -la
-          make package FINALPACKAGE=1
+          gmake package FINALPACKAGE=1  # 使用 gmake 代替 make
 
       # Install dependencies for Ubuntu
       - name: Install dependencies on Ubuntu
