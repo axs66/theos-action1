@@ -1,60 +1,52 @@
-name: CI
-
-on:
-  push:
-    branches: [ main ]  # 限定触发分支
-  schedule:
-    - cron: '0 1 15 * *'  # UTC时间每月15日1:00 (北京时间9:00)
-      timezone: Asia/Shanghai  # 显式声明时区
-
 jobs:
   build-logos:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest, ubuntu-latest ]
+        os: [macos-latest, ubuntu-latest]
         include:  # 添加架构标识
           - os: macos-latest
-            arch: arm64
+            platform: macos
           - os: ubuntu-latest
-            arch: x64
+            platform: linux
 
     steps:
-      - name: Checkout code (v4)
-        uses: actions/checkout@v4  # 升级至最新稳定版
+      - uses: actions/checkout@v4
         with:
           repository: Randomblock1/FleetsBGone
-          submodules: recursive  # 显式声明子模块模式
-          fetch-depth: 0  # 获取完整提交历史
+          submodules: recursive
 
-      - name: Setup Theos
-        uses: randomblock1/theos-action@main
-        with:  # 添加架构参数
-          target: ${{ matrix.arch }}
-
-      - name: Clean previous builds
+      - name: Setup platform dependencies
+        if: matrix.platform == 'linux'
         run: |
-          rm -rf packages/*
-          mkdir -p packages
+          # Ubuntu 专用依赖
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            fakeroot \
+            libtinfo-dev \  # 替换 libtinfo5
+            libz3-dev \
+            rsync \
+            curl \
+            perl \
+            unzip \
+            git \
+            libplist-utils \
+            libncurses5  # 补充缺失的依赖
+
+      - name: Prepare Theos
+        uses: randomblock1/theos-action@main
+        with:
+          # 禁用自动依赖安装
+          auto-dependencies: false
 
       - name: Build package
         run: |
-          # 添加时间戳作为构建标识
-          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
-          make package FINALPACKAGE=1 \
-            BUILD_ID=$TIMESTAMP \
-            THEOS_PACKAGE_NAME="FleetsBGone_${{ matrix.arch }}"
+          rm -f packages/*
+          make package FINALPACKAGE=1
 
-      - name: Upload artifacts (v4)
-        uses: actions/upload-artifact@v4  # 升级至非弃用版本
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: "FleetsBGone_${{ matrix.os }}_${{ matrix.arch }}"
-          path: |
-            ${{ github.workspace }}/packages/*.deb
-            ${{ github.workspace }}/.theos/**/*.log  # 包含构建日志
-          retention-days: 7  # 设置自动清理周期
-
-  # Orion 构建作业模板（根据需求补充）
-  # build-orion:
-  #   runs-on: macos-latest
-  #   steps: [...]
+          name: "Package_${{ matrix.os }}"
+          path: packages/*.deb
