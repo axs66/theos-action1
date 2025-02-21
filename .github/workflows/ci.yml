@@ -17,7 +17,7 @@ jobs:
         with:
           repository: Randomblock1/FleetsBGone
           submodules: true
-          ref: refs/heads/main  # 使用完整的分支引用
+          ref: main  # 使用仓库的 main 分支
           fetch-depth: 0  # 拉取完整历史
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -65,8 +65,8 @@ jobs:
         with:
           repository: Randomblock1/OrionTweakRepo
           submodules: true
-          ref: refs/heads/main  # 使用完整的分支引用
-          fetch-depth: 0
+          ref: main  # 使用仓库的 main 分支
+          fetch-depth: 0  # 拉取完整历史
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare Theos for Orion tweak
