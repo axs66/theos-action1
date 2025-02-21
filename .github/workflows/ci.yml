@@ -38,8 +38,9 @@ jobs:
         echo "列出当前目录的文件："
         ls -la
 
-        # 执行构建命令
-        make package FINALPACKAGE=1  # 使用 Makefile 中的构建命令
+        # 跳过 Makefile，直接执行构建命令
+        # 假设没有 Makefile，你可以直接运行构建命令，如 make package
+        make package FINALPACKAGE=1  # 直接执行构建
 
     - name: Upload package
       uses: actions/upload-artifact@v4
