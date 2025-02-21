@@ -38,8 +38,8 @@ jobs:
         echo "列出当前目录的文件："
         ls -la
 
-        # 确保 Makefile 中引用的路径是相对路径
-        make package FINALPACKAGE=1
+        # 执行构建命令
+        make package FINALPACKAGE=1  # 使用 Makefile 中的构建命令
 
     - name: Upload package
       uses: actions/upload-artifact@v4
