@@ -17,6 +17,9 @@ jobs:
         with:
           repository: Randomblock1/FleetsBGone
           submodules: true
+          ref: main  # 确保你使用的是正确的分支
+          fetch-depth: 0  # 拉取完整历史，避免深度限制
+          token: ${{ secrets.GITHUB_TOKEN }}  # 如果是私有仓库，确保访问权限
 
       - name: Prepare Theos
         uses: axs66/theos-action@main
@@ -58,10 +61,13 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: Randomblock1/OrionTweakRepo
           submodules: true
+          ref: main  # 确保你使用的是正确的分支
+          fetch-depth: 0  # 拉取完整历史，避免深度限制
+          token: ${{ secrets.GITHUB_TOKEN }}  # 如果是私有仓库，确保访问权限
 
       - name: Prepare Theos for Orion tweak
         uses: axs66/theos-action@main
