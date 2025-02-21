@@ -13,14 +13,7 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Install dependencies
-       run: |
-        sudo add-apt-repository universe -y
-        sudo apt-get update -y
-        sudo apt-get install -y build-essential fakeroot libtinfo6 libz3-dev rsync curl perl unzip git libplist-utils
-    
-      - uses: actions/checkout@v4.1.1
+    - uses: actions/checkout@v4.1.1
         with:
           repository: Randomblock1/FleetsBGone
           submodules: true
