@@ -16,12 +16,11 @@ jobs:
     - uses: actions/checkout@v4
       with:
         repository: Randomblock1/FleetsBGone
-        submodules: true
+        submodules: true  # 确保子模块正确检出
 
     - name: Prepare Theos
       run: |
         if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-          # 仅在 Ubuntu 上执行
           sudo apt-get update  # 更新包列表
           sudo apt-get install -y lsb-release  # 安装 lsb-release 包
           lsb_release -a  # 检查系统版本
@@ -30,9 +29,16 @@ jobs:
 
     - name: Build package
       run: |
-        # 修复 gmake 问题
+        # 确保正确设置 make 路径
         export PATH="/opt/homebrew/opt/make/libexec/gnubin:$PATH"  # 确保使用正确的 make
         rm -f packages/*
+
+        # 确保文件路径正确
+        echo "当前目录：$(pwd)"
+        echo "列出当前目录的文件："
+        ls -la
+
+        # 确保 Makefile 中引用的路径是相对路径
         make package FINALPACKAGE=1
 
     - name: Upload package
