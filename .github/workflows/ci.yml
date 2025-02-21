@@ -25,13 +25,18 @@ jobs:
         run: |
           which theos || echo "Theos not found"
           theos --version || echo "Theos version not found"
+          which gmake || echo "gmake not found"
+
+      - name: Set PATH for gmake
+        run: |
+          echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
       - name: Build package
         run: |
           echo "Starting build..."
           ls -la ${{ github.workspace }}
           rm -f packages/*
-          make package FINALPACKAGE=1
+          gmake package FINALPACKAGE=1
           echo "Build finished with status $?"
 
       - name: Upload package
@@ -60,13 +65,18 @@ jobs:
         run: |
           which theos || echo "Theos not found"
           theos --version || echo "Theos version not found"
+          which gmake || echo "gmake not found"
+
+      - name: Set PATH for gmake for Orion tweak
+        run: |
+          echo "PATH=/opt/homebrew/opt/make/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
       - name: Build Orion tweak
         run: |
           echo "Starting Orion tweak build..."
           ls -la ${{ github.workspace }}
           rm -f packages/*
-          make orion FINALPACKAGE=1
+          gmake orion FINALPACKAGE=1
           echo "Orion tweak build finished with status $?"
 
       - name: Upload Orion tweak
