@@ -1,70 +1,131 @@
-name: CI
+name: CI Pipeline
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'Makefile'
   schedule:
     - cron: '0 1 15 * *'
       timezone: Asia/Shanghai
 
 jobs:
-  build-logos:
+  build-packages:
+    name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ macos-latest, ubuntu-latest ]
         include:
           - os: macos-latest
-            arch: arm64
+            brew_prefix: /opt/homebrew
+            make_cmd: gmake
+            setup_script: |
+              brew update-reset
+              brew install make ldid
+              sudo xcode-select --switch /Applications/Xcode_15.2.app
           - os: ubuntu-latest
-            arch: x64
+            brew_prefix: /home/linuxbrew/.linuxbrew
+            make_cmd: make
+            setup_script: |
+              sudo apt-get update
+              sudo apt-get install -y build-essential clang llvm ldid
 
-    # 关键修复点：配置 GNU Make 环境
     env:
-      HOMEBREW_PREFIX: /opt/homebrew  # ARM macOS 专用路径
-      PATH: ${{ env.HOMEBREW_PREFIX }}/opt/make/libexec/gnubin:${{ env.PATH }}
+      HOMEBREW_PREFIX: ${{ matrix.brew_prefix }}
+      PATH: ${{ matrix.brew_prefix }}/bin:${{ matrix.brew_prefix }}/opt/make/libexec/gnubin:${{ env.PATH }}
 
     steps:
-      - name: Setup Homebrew (macOS only)
-        if: matrix.os == 'macos-latest'
-        run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "$HOMEBREW_PREFIX/bin" >> $GITHUB_PATH
-
-      - name: Install GNU Make (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install make
-          # 验证安装
-          make --version | grep "GNU Make"
-
-      - name: Checkout code
+      - name: Checkout Codebase
         uses: actions/checkout@v4
         with:
           repository: Randomblock1/FleetsBGone
           submodules: recursive
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Prepare Theos
-        uses: randomblock1/theos-action@main
-        with:
-          target: ${{ matrix.arch }}
-
-      - name: Build environment check
+      - name: Setup Build Environment
+        shell: bash
         run: |
-          echo "Using make: $(which make)"
+          # 环境初始化
+          echo "===== System Info ====="
+          uname -a
+          sw_vers || cat /etc/os-release
+          
+          # 平台特定配置
+          ${{ matrix.setup_script }}
+          
+          # 路径验证
+          echo "PATH: $PATH"
+          which make
           make --version
 
-      - name: Build package
-        run: |
-          # 显式使用 GNU Make
-          gmake package FINALPACKAGE=1
-          # 或使用 alias 后的 make
-          # make package FINALPACKAGE=1
+      - name: Cache Dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.HOMEBREW_PREFIX }}/** 
+            ~/.theos
+            packages/
+          key: ${{ runner.os }}-${{ hashFiles('**/Makefile', '**/*.xm') }}-v3
 
-      - name: Upload artifacts
+      - name: Prepare Theos Framework
+        uses: randomblock1/theos-action@main
+        with:
+          theos_branch: master
+          sdk_version: latest
+          cache: true
+
+      - name: Build Package (Multi-Arch)
+        id: build
+        timeout-minutes: 15
+        run: |
+          set -eo pipefail
+          
+          # 清理历史构建
+          rm -rf packages/*.{deb,log}
+          
+          # 动态版本生成
+          BUILD_DATE=$(date +'%Y%m%d-%H%M%S')
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          
+          # 并行构建
+          ${{ matrix.make_cmd }} package FINALPACKAGE=1 \
+            THEOS_PACKAGE_NAME="FleetsBGone-${{ matrix.os }}-$BUILD_DATE" \
+            THEOS_PACKAGE_VERSION="1.9.$(git rev-list --count HEAD)" \
+            BUILD_TIMESTAMP="$BUILD_DATE" \
+            COMMIT_HASH="$COMMIT_HASH" \
+            2>&1 | tee build.log
+          
+          # 构建产物校验
+          if [ ! -f packages/*.deb ]; then
+            echo "::error::No .deb files generated!"
+            exit 1
+          fi
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: "FleetsBGone_${{ matrix.os }}_${{ matrix.arch }}"
-          path: packages/*.deb
-          retention-days: 7
+          name: packages-${{ matrix.os }}-${{ steps.build.outputs.BUILD_ID }}
+          path: |
+            packages/*.deb
+            build.log
+          retention-days: 3
+
+      - name: Create GitHub Release
+        if: success() && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 智能版本管理
+          LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq .tag_name 2>/dev/null || echo "v0.0.0")
+          NEW_VERSION=$(semver -i minor $LATEST_TAG)
+          
+          gh release create $NEW_VERSION \
+            packages/*.deb \
+            --title "Release $NEW_VERSION (${{ matrix.os }})" \
+            --notes "Build details:
+            - Platform: ${{ matrix.os }}
+            - Commit: $(git log -1 --pretty=format:'%h %s')
+            - Build Date: $(date +'%Y-%m-%d %H:%M:%S %Z')"
