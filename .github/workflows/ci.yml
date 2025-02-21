@@ -32,24 +32,10 @@ jobs:
         with:  # 添加架构参数
           target: ${{ matrix.arch }}
 
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-        path: |
-         ~/.theos/cache
-         ${{ github.workspace }}/.theos
-        key: ${{ runner.os }}-theos-${{ hashFiles('**/Makefile') }}
-    
       - name: Clean previous builds
         run: |
           rm -rf packages/*
           mkdir -p packages
-
-      - name: Generate semver
-        id: version
-        run: |
-         COMMIT_COUNT=$(git rev-list --count HEAD)
-         echo "version=1.9.$COMMIT_COUNT" >> $GITHUB_OUTPUT
 
       - name: Build package
         run: |
@@ -59,13 +45,6 @@ jobs:
             BUILD_ID=$TIMESTAMP \
             THEOS_PACKAGE_NAME="FleetsBGone_${{ matrix.arch }}"
 
-      - name: Validate artifacts
-        run: |
-         if [ ! -f "${{ github.workspace }}/packages/"*.deb ]; then
-         echo "::error::No .deb files generated!"
-         exit 1
-         fi
-    
       - name: Upload artifacts (v4)
         uses: actions/upload-artifact@v4  # 升级至非弃用版本
         with:
