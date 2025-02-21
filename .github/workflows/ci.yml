@@ -34,7 +34,7 @@ jobs:
           ls -la
           gmake package FINALPACKAGE=1  # 使用 gmake 代替 make
 
-      # Install dependencies for Ubuntu
+      # Install dependencies on Ubuntu
       - name: Install dependencies on Ubuntu
         if: runner.os == 'Linux'
         run: |
