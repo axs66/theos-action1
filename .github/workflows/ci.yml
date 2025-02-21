@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]  # 限定触发分支
+    branches: [ main ]
   schedule:
-    - cron: '0 1 15 * *'  # UTC时间每月15日1:00 (北京时间9:00)
+    - cron: '0 1 15 * *'
       timezone: Asia/Shanghai
 
 jobs:
@@ -13,47 +13,58 @@ jobs:
     strategy:
       matrix:
         os: [ macos-latest, ubuntu-latest ]
-        include:  # 矩阵组合必须正确缩进
+        include:
           - os: macos-latest
             arch: arm64
           - os: ubuntu-latest
             arch: x64
 
+    # 关键修复点：配置 GNU Make 环境
+    env:
+      HOMEBREW_PREFIX: /opt/homebrew  # ARM macOS 专用路径
+      PATH: ${{ env.HOMEBREW_PREFIX }}/opt/make/libexec/gnubin:${{ env.PATH }}
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4  # 必须升级到v4
+      - name: Setup Homebrew (macOS only)
+        if: matrix.os == 'macos-latest'
+        run: |
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          echo "$HOMEBREW_PREFIX/bin" >> $GITHUB_PATH
+
+      - name: Install GNU Make (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install make
+          # 验证安装
+          make --version | grep "GNU Make"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
           repository: Randomblock1/FleetsBGone
           submodules: recursive
           fetch-depth: 0
 
-      - name: Set up Theos
+      - name: Prepare Theos
         uses: randomblock1/theos-action@main
         with:
-          theos_version: v2.6  # 必须指定具体版本
+          target: ${{ matrix.arch }}
 
-      - name: Clean workspace
+      - name: Build environment check
         run: |
-          rm -rf packages/*
-          mkdir -p packages
+          echo "Using make: $(which make)"
+          make --version
 
       - name: Build package
-        env:
-          THEOS_PACKAGE_DIR: ${{ github.workspace }}/packages
         run: |
-          # 添加调试日志
-          echo "Build started at $(date)"
-          make package FINALPACKAGE=1
-          ls -l $THEOS_PACKAGE_DIR
+          # 显式使用 GNU Make
+          gmake package FINALPACKAGE=1
+          # 或使用 alias 后的 make
+          # make package FINALPACKAGE=1
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4  # 必须升级到v4
+        uses: actions/upload-artifact@v4
         with:
-          name: fleetsbgone_${{ matrix.os }}_${{ matrix.arch }}
-          path: ${{ github.workspace }}/packages/*.deb
-          if-no-files-found: error  # 防止空上传
-
-  # 可选：Orion构建作业
-  # build-orion:
-  #   runs-on: macos-latest
-  #   steps: [...]
+          name: "FleetsBGone_${{ matrix.os }}_${{ matrix.arch }}"
+          path: packages/*.deb
+          retention-days: 7
