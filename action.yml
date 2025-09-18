@@ -1,6 +1,6 @@
 name: "Install Theos"
 description: "Install Theos and prepare it for building projects"
-author: "Randomblock1"
+author: "Randomblock1 (updated by ChatGPT)"
 branding:
   icon: download-cloud
   color: purple
@@ -23,71 +23,103 @@ inputs:
     required: false
     default: "master"
   orion:
-    description: "Whether to enable Orion, which adds support for Swift tweaks"
+    description: "Whether to enable Orion (Swift tweaks support)"
     required: false
     default: "false"
+  swift-toolchain-url:
+    description: "Swift toolchain for Linux (tar.xz download URL)"
+    required: false
+    default: "https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz"
 
 runs:
   using: "composite"
   steps:
-    - name: Setup (MacOS)
+    - name: Setup (macOS)
       shell: bash
       if: runner.os == 'macOS'
       run: |
         brew install ldid make
-        PATH="$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
+        echo "PATH=$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
     - name: Setup (Linux)
       shell: bash
       if: runner.os == 'Linux'
-      run: sudo apt install build-essential fakeroot libtinfo5 libz3-dev rsync curl perl unzip git libplist-utils
+      run: |
+        sudo apt update
+        sudo apt install -y build-essential fakeroot libz3-dev rsync curl perl unzip git libplist-utils libtinfo6
 
     - name: Setup environment
       shell: bash
       run: echo "THEOS=${{ inputs.theos-dir }}" >> $GITHUB_ENV
 
+    # 缓存 Theos
+    - name: Cache Theos
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.theos-dir }}
+        key: theos-${{ runner.os }}-${{ hashFiles('.github/workflows/**') }}
+
     - name: Download Theos
       shell: bash
       run: |
-        if [ ! -d "${{ inputs.theos-dir }}" ]; then
+        if [ ! -d "${{ inputs.theos-dir }}/.git" ]; then
           git clone ${{ inputs.theos-src }} ${{ inputs.theos-dir }} --recursive
           echo "Theos successfully downloaded."
         else
           echo "Theos already cached."
         fi
 
+    # 缓存 Linux Toolchain
+    - name: Cache Linux Toolchain
+      if: runner.os == 'Linux'
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.theos-dir }}/toolchain
+        key: toolchain-${{ runner.os }}-${{ inputs.swift-toolchain-url }}
+
     - name: Get toolchain (Linux)
       shell: bash
       if: runner.os == 'Linux'
       run: |
-        if [[ "$(ls ${{ inputs.theos-dir }}/sdks)" ]]; then
+        if [[ -d "$THEOS/toolchain" && "$(ls -A $THEOS/toolchain)" ]]; then
           echo "Linux toolchain already cached, skipping..."
         else
+          mkdir -p $THEOS/toolchain
           TMP_DL=$(mktemp -d)
-          wget --no-verbose https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz -P $TMP_DL
-          tar -xvf $TMP_DL/swift-5.8-ubuntu22.04.tar.xz -C $THEOS/toolchain
-          rm -Rf $TMP_DL
+          curl -L "${{ inputs.swift-toolchain-url }}" -o $TMP_DL/toolchain.tar.xz
+          tar -xvf $TMP_DL/toolchain.tar.xz -C $THEOS/toolchain
+          rm -rf $TMP_DL
         fi
+
+    # 缓存 SDKs
+    - name: Cache SDKs
+      uses: actions/cache@v4
+      with:
+        path: ${{ inputs.theos-dir }}/sdks
+        key: sdks-${{ runner.os }}-${{ inputs.theos-sdks-branch }}
 
     - name: Get SDKs
       shell: bash
       run: |
-        if [[ "$(ls ${{ inputs.theos-dir }}/sdks)" ]]; then
+        if [[ -d "$THEOS/sdks" && "$(ls -A $THEOS/sdks)" ]]; then
           echo "Theos SDKs already cached, skipping..."
         else
-          cd ${{ inputs.theos-dir }}/sdks
-          wget --no-verbose ${{ inputs.theos-sdks }}/archive/${{ inputs.theos-sdks-branch }}.zip
+          mkdir -p $THEOS/sdks
           TMP=$(mktemp -d)
-          7z x ${{ inputs.theos-sdks-branch }}.zip -o$TMP
+          curl -L "${{ inputs.theos-sdks }}/archive/${{ inputs.theos-sdks-branch }}.zip" -o sdks.zip
+          unzip -q sdks.zip -d $TMP
           mv $TMP/*-${{ inputs.theos-sdks-branch }}/*.sdk $THEOS/sdks
-          rm -r ${{ inputs.theos-sdks-branch }}.zip $TMP
+          rm -rf sdks.zip $TMP
         fi
 
     - name: Enable Orion
       shell: bash
       if: inputs.orion == 'true'
       run: |
-        cd ${{ inputs.theos-dir }}
-        git fetch
-        git checkout orion
-        git submodule update --init
+        cd $THEOS
+        make setup_orion || {
+          echo "Falling back to orion branch..."
+          git fetch
+          git checkout orion
+          git submodule update --init --recursive
+        }
