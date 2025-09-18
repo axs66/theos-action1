@@ -1,64 +1,93 @@
-name: 'Theos Build Action'
-description: 'Build iOS tweaks or apps using Theos on GitHub Actions'
-author: 'axs66'
+name: "Install Theos"
+description: "Install Theos and prepare it for building projects"
+author: "Randomblock1"
 branding:
-  icon: 'cpu'
-  color: 'purple'
+  icon: download-cloud
+  color: purple
 
 inputs:
-  project-path:
-    description: 'Path to your Theos project (where Makefile is located)'
+  theos-dir:
+    description: "Where to install Theos"
     required: false
-    default: '.'
-  target:
-    description: 'Make target to build (e.g., package, install)'
+    default: ${{ github.workspace }}/theos
+  theos-src:
+    description: "Where to clone Theos from (git URL)"
     required: false
-    default: 'package'
-  theos-repo:
-    description: 'Theos repo URL'
+    default: "https://github.com/roothide/theos"
+  theos-sdks:
+    description: "Where to clone the iOS SDKs from (GitHub repository URL)"
     required: false
-    default: 'https://github.com/theos/theos.git'
-  theos-ref:
-    description: 'Theos branch or tag'
+    default: "https://github.com/theos/sdks"
+  theos-sdks-branch:
+    description: "Which branch to clone from SDK repo"
     required: false
-    default: 'master'
-  sdk:
-    description: 'iOS SDK version (used with theos/sdks)'
+    default: "master"
+  orion:
+    description: "Whether to enable Orion, which adds support for Swift tweaks"
     required: false
-    default: '14.5'
+    default: "false"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - name: Setup (MacOS)
+      shell: bash
+      if: runner.os == 'macOS'
+      run: |
+        brew install ldid make
+        PATH="$(brew --prefix make)/libexec/gnubin:$PATH" >> $GITHUB_ENV
 
-    - name: Install dependencies
+    - name: Setup (Linux)
+      shell: bash
+      if: runner.os == 'Linux'
+      run: sudo apt install build-essential fakeroot libtinfo5 libz3-dev rsync curl perl unzip git libplist-utils
+
+    - name: Setup environment
+      shell: bash
+      run: echo "THEOS=${{ inputs.theos-dir }}" >> $GITHUB_ENV
+
+    - name: Download Theos
       shell: bash
       run: |
-        sudo apt-get update
-        sudo apt-get install -y --no-install-recommends \
-          build-essential fakeroot ldid git perl clang make unzip wget curl
+        if [ ! -d "${{ inputs.theos-dir }}" ]; then
+          git clone ${{ inputs.theos-src }} ${{ inputs.theos-dir }} --recursive
+          echo "Theos successfully downloaded."
+        else
+          echo "Theos already cached."
+        fi
 
-    - name: Setup Theos
+    - name: Get toolchain (Linux)
+      shell: bash
+      if: runner.os == 'Linux'
+      run: |
+        if [[ "$(ls ${{ inputs.theos-dir }}/sdks)" ]]; then
+          echo "Linux toolchain already cached, skipping..."
+        else
+          TMP_DL=$(mktemp -d)
+          wget --no-verbose https://github.com/kabiroberai/swift-toolchain-linux/releases/download/v2.3.0/swift-5.8-ubuntu22.04.tar.xz -P $TMP_DL
+          tar -xvf $TMP_DL/swift-5.8-ubuntu22.04.tar.xz -C $THEOS/toolchain
+          rm -Rf $TMP_DL
+        fi
+
+    - name: Get SDKs
       shell: bash
       run: |
-        echo "🔧 Setting up Theos..."
-        export THEOS=$HOME/theos
-        git clone --recursive --branch ${{ inputs.theos-ref }} ${{ inputs.theos-repo }} $THEOS
+        if [[ "$(ls ${{ inputs.theos-dir }}/sdks)" ]]; then
+          echo "Theos SDKs already cached, skipping..."
+        else
+          cd ${{ inputs.theos-dir }}/sdks
+          wget --no-verbose ${{ inputs.theos-sdks }}/archive/${{ inputs.theos-sdks-branch }}.zip
+          TMP=$(mktemp -d)
+          7z x ${{ inputs.theos-sdks-branch }}.zip -o$TMP
+          mv $TMP/*-${{ inputs.theos-sdks-branch }}/*.sdk $THEOS/sdks
+          rm -r ${{ inputs.theos-sdks-branch }}.zip $TMP
+        fi
 
-        # 下载 iOS SDKs（如果你没有自己的缓存，可以这样）
-        mkdir -p $THEOS/sdks
-        wget -q https://github.com/theos/sdks/archive/refs/heads/master.zip -O sdks.zip
-        unzip -q sdks.zip -d $THEOS
-        mv $THEOS/sdks-master/* $THEOS/sdks/
-        rm -rf sdks.zip $THEOS/sdks-master
-
-        echo "THEOS=$THEOS" >> $GITHUB_ENV
-
-    - name: Build Project
+    - name: Enable Orion
       shell: bash
-      working-directory: ${{ inputs.project-path }}
+      if: inputs.orion == 'true'
       run: |
-        echo "📦 Building project with Theos..."
-        make ${{ inputs.target }}
+        cd ${{ inputs.theos-dir }}
+        git fetch
+        git checkout orion
+        git submodule update --init
