@@ -3,22 +3,24 @@ name: CI
 on: 
   push:
   schedule:
-    - cron: '0 9 15 * *'  # 每月15号的9点UTC触发工作流
+    - cron: '0 9 15 * *'
 
 jobs:
   build-logos:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      # 一定要先 checkout，保证本地 ./theos-action 存在
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: true
 
+      # 调用本地的 theos-action
       - name: Install Theos
         uses: ./theos-action
         with:
-          orion: "false"  # 如果需要 Swift tweaks，改成 true
+          orion: "false"
 
       - name: Build package
         run: |
