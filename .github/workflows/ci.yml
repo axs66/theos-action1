@@ -13,6 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          repository: Randomblock1/FleetsBGone
           submodules: true  # 检出子模块
 
       - name: Install dependencies and setup Theos
