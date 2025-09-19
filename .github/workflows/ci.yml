@@ -24,6 +24,7 @@ jobs:
           if ! dpkg -s libtinfo5 > /dev/null 2>&1; then
             sudo apt-get install -y libtinfo-dev  # 如果 libtinfo5 不存在，安装 libtinfo-dev
           fi
+          
       - name: Setup environment
         run: echo "THEOS=${{ github.workspace }}/theos" >> $GITHUB_ENV
 
@@ -35,6 +36,7 @@ jobs:
           else
             echo "Theos already cached."
           fi
+          
       - name: Get toolchain (Linux)
         run: |
           if [[ "$(ls ${{ github.workspace }}/theos/sdks)" ]]; then
@@ -45,6 +47,7 @@ jobs:
             tar -xvf $TMP_DL/swift-5.8-ubuntu22.04.tar.xz -C ${{ github.workspace }}/theos/toolchain
             rm -Rf $TMP_DL
           fi
+          
       - name: Get SDKs
         run: |
           if [[ -d "${{ github.workspace }}/theos/toolchain" && "$(ls -A ${{ github.workspace }}/theos/toolchain)" ]]; then
@@ -57,10 +60,6 @@ jobs:
           rm -Rf $TMP_DL
           fi
 
-      - name: Build package
-        run: |
-          rm -f packages/*  # 清理旧包
-          make package FINALPACKAGE=1  # 构建 package
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:
